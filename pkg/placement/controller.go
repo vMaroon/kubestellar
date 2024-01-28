@@ -80,7 +80,7 @@ type Controller struct {
 	kubernetesClient *kubernetes.Clientset
 	extClient        *apiextensionsclientset.Clientset
 	listers          map[string]*cache.GenericLister
-	gvkGvrMapper     GvkGvrMapper
+	gvkGvrMapper     util.GvkGvrMapper
 	informers        map[string]*cache.SharedIndexInformer
 	stoppers         map[string]chan struct{}
 
@@ -115,18 +115,21 @@ func NewController(mgr ctrlm.Manager, wdsRestConfig *rest.Config, imbsRestConfig
 
 	ocmClient := *ocm.GetOCMClient(imbsRestConfig)
 
+	gvkGvrMapper := util.NewGvkGvrMapper()
+
 	controller := &Controller{
-		wdsName:          wdsName,
-		logger:           mgr.GetLogger(),
-		ocmClient:        ocmClient,
-		dynamicClient:    dynamicClient,
-		kubernetesClient: kubernetesClient,
-		extClient:        extClient,
-		listers:          make(map[string]*cache.GenericLister),
-		informers:        make(map[string]*cache.SharedIndexInformer),
-		stoppers:         make(map[string]chan struct{}),
-		gvkGvrMapper:     NewGvkGvrMapper(),
-		workqueue:        workqueue.NewRateLimitingQueue(ratelimiter),
+		wdsName:                   wdsName,
+		logger:                    mgr.GetLogger(),
+		ocmClient:                 ocmClient,
+		dynamicClient:             dynamicClient,
+		kubernetesClient:          kubernetesClient,
+		extClient:                 extClient,
+		listers:                   make(map[string]*cache.GenericLister),
+		informers:                 make(map[string]*cache.SharedIndexInformer),
+		stoppers:                  make(map[string]chan struct{}),
+		placementDecisionResolver: NewPlacementDecisionResolver(gvkGvrMapper),
+		gvkGvrMapper:              gvkGvrMapper,
+		workqueue:                 workqueue.NewRateLimitingQueue(ratelimiter),
 	}
 
 	return controller, nil
@@ -331,6 +334,19 @@ func (c *Controller) enqueueObject(obj interface{}, skipCheckIsDeleted bool) {
 	c.workqueue.Add(key)
 }
 
+// enqueueCreateObject converts a non-existing object into a key struct marked
+// for creation. This is used to have workers create objects that do not exist.
+func (c *Controller) enqueueCreateObject(obj runtime.Object) {
+	key, err := util.KeyForGroupVersionKindNamespaceName(obj)
+	if err != nil {
+		utilruntime.HandleError(err)
+		return
+	}
+
+	key.IsBeingCreated = true
+	c.workqueue.Add(key)
+}
+
 // runWorker is a long-running function that will continually call the
 // processNextWorkItem function in order to read and process a message on the
 // workqueue.
@@ -394,15 +410,19 @@ func (c *Controller) reconcile(ctx context.Context, key util.Key) error {
 	var obj runtime.Object
 	var err error
 	if key.DeletedObject == nil {
-		obj, err = c.getObjectFromKey(key)
-		if err != nil {
-			// The resource no longer exist, which means it has been deleted.
-			if errors.IsNotFound(err) {
-				utilruntime.HandleError(fmt.Errorf("object %#v for lister '%s' in work queue no longer exists",
-					key.NamespacedName, key.GvkKey()))
-				return nil
+		if key.IsBeingCreated {
+			obj = util.EmptyUnstructuredObjectFromKey(key)
+		} else {
+			obj, err = c.getObjectFromKey(key)
+			if err != nil {
+				// The resource no longer exist, which means it has been deleted.
+				if errors.IsNotFound(err) {
+					utilruntime.HandleError(fmt.Errorf("object %#v for lister '%s' in work queue no longer exists",
+						key.NamespacedName, key.GvkKey()))
+					return nil
+				}
+				return err
 			}
-			return err
 		}
 	} else {
 		obj = *key.DeletedObject
@@ -424,6 +444,7 @@ func (c *Controller) reconcile(ctx context.Context, key util.Key) error {
 		if err := c.handlePlacementDecision(obj); err != nil {
 			return err
 		}
+		return nil
 	}
 
 	// avoid further processing for keys of objects being deleted that do not have a deleted object

@@ -14,14 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package placement
+package util
 
 import (
 	"sync"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	"github.com/kubestellar/kubestellar/pkg/util"
 )
 
 // GvkGvrMapper is a thread-safe mapping between GVKs and GVRs.
@@ -44,14 +42,14 @@ type GvkGvrMapper interface {
 
 type gvkGvrMapper struct {
 	sync.RWMutex
-	gvkToGvr map[string]*schema.GroupVersionResource
-	gvrToGvk map[string]*schema.GroupVersionKind
+	gvkToGvr map[string]schema.GroupVersionResource
+	gvrToGvk map[string]schema.GroupVersionKind
 }
 
 func NewGvkGvrMapper() GvkGvrMapper {
 	return &gvkGvrMapper{
-		gvkToGvr: make(map[string]*schema.GroupVersionResource),
-		gvrToGvk: make(map[string]*schema.GroupVersionKind),
+		gvkToGvr: make(map[string]schema.GroupVersionResource),
+		gvrToGvk: make(map[string]schema.GroupVersionKind),
 	}
 }
 
@@ -59,8 +57,8 @@ func (m *gvkGvrMapper) Add(gvk schema.GroupVersionKind, gvr schema.GroupVersionR
 	m.Lock()
 	defer m.Unlock()
 
-	m.gvkToGvr[util.KeyForGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)] = &gvr
-	m.gvrToGvk[util.KeyForGroupVersionResource(gvr.Group, gvr.Version, gvr.Resource)] = &gvk
+	m.gvkToGvr[KeyForGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)] = gvr
+	m.gvrToGvk[KeyForGroupVersionResource(gvr.Group, gvr.Version, gvr.Resource)] = gvk
 }
 
 func (m *gvkGvrMapper) DeleteByGvkKey(gvkKey string) {
@@ -73,7 +71,7 @@ func (m *gvkGvrMapper) DeleteByGvkKey(gvkKey string) {
 	}
 
 	delete(m.gvkToGvr, gvkKey)
-	delete(m.gvrToGvk, util.KeyForGroupVersionResource(gvr.Group, gvr.Version, gvr.Resource))
+	delete(m.gvrToGvk, KeyForGroupVersionResource(gvr.Group, gvr.Version, gvr.Resource))
 }
 
 func (m *gvkGvrMapper) DeleteByGvrKey(gvrKey string) {
@@ -86,21 +84,21 @@ func (m *gvkGvrMapper) DeleteByGvrKey(gvrKey string) {
 	}
 
 	delete(m.gvrToGvk, gvrKey)
-	delete(m.gvkToGvr, util.KeyForGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind))
+	delete(m.gvkToGvr, KeyForGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind))
 }
 
 func (m *gvkGvrMapper) GetGvr(gvk schema.GroupVersionKind) (*schema.GroupVersionResource, bool) {
 	m.RLock()
 	defer m.RUnlock()
 
-	gvr, ok := m.gvkToGvr[util.KeyForGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)]
-	return gvr, ok
+	gvr, ok := m.gvkToGvr[KeyForGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)]
+	return &gvr, ok
 }
 
 func (m *gvkGvrMapper) GetGvk(gvr schema.GroupVersionResource) (*schema.GroupVersionKind, bool) {
 	m.RLock()
 	defer m.RUnlock()
 
-	gvk, ok := m.gvrToGvk[util.KeyForGroupVersionResource(gvr.Group, gvr.Version, gvr.Resource)]
-	return gvk, ok
+	gvk, ok := m.gvrToGvk[KeyForGroupVersionResource(gvr.Group, gvr.Version, gvr.Resource)]
+	return &gvk, ok
 }

@@ -18,6 +18,7 @@ package util
 
 import (
 	"fmt"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,6 +37,10 @@ type Key struct {
 	GVK            schema.GroupVersionKind
 	NamespacedName cache.ObjectName
 	DeletedObject  *runtime.Object
+
+	// IsBeingCreated can be used to instruct handlers that this object is queued
+	// for creation.
+	IsBeingCreated bool
 }
 
 func (k *Key) GvkKey() string {
@@ -116,4 +121,14 @@ func GenerateObjectInfoString(obj runtime.Object) string {
 	}
 
 	return fmt.Sprintf("[%s] %s/%s", mObj.GetNamespace(), prefix, mObj.GetName())
+}
+
+func EmptyUnstructuredObjectFromKey(key Key) *unstructured.Unstructured {
+	obj := &unstructured.Unstructured{}
+
+	obj.SetGroupVersionKind(key.GVK)
+	obj.SetNamespace(key.NamespacedName.Namespace)
+	obj.SetName(key.NamespacedName.Name)
+
+	return obj
 }

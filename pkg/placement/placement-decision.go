@@ -17,6 +17,7 @@ limitations under the License.
 package placement
 
 import (
+	"context"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -68,10 +69,6 @@ func (c *Controller) updateOrCreatePlacementDecision(pd *v1alpha1.PlacementDecis
 	placementDecisionSpec *v1alpha1.PlacementDecisionSpec) error {
 	// add finalizer to placement decision if missing
 	addFinalizerToPlacementDecision(pd)
-	// add update-timestamp annotation in order to trigger any watcher to receive an event on the placement-decision
-	// resource. since the objects/destinations list may not have changed, but an object-internal change
-	// could have triggered the queuing of affected placement-decisions.
-	updatePlacementDecisionTimestampAnnotation(pd)
 
 	unstructuredPlacementDecision, err := placementDecisionSpecToUnstructuredObject(pd, placementDecisionSpec)
 	if err != nil {
@@ -82,26 +79,25 @@ func (c *Controller) updateOrCreatePlacementDecision(pd *v1alpha1.PlacementDecis
 		Group:    v1alpha1.SchemeGroupVersion.Group,
 		Version:  pd.GetObjectKind().GroupVersionKind().Version,
 		Resource: util.PlacementDecisionResource,
-	}).Update(c.ctx, unstructuredPlacementDecision, metav1.UpdateOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to update placement decision: %v", err)
-	}
-
+	}).Update(context.Background(), unstructuredPlacementDecision, metav1.UpdateOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			_, err = c.dynamicClient.Resource(schema.GroupVersionResource{
 				Group:    v1alpha1.SchemeGroupVersion.Group,
 				Version:  pd.GetObjectKind().GroupVersionKind().Version,
 				Resource: util.PlacementDecisionResource,
-			}).Create(c.ctx, unstructuredPlacementDecision, metav1.CreateOptions{})
+			}).Create(context.Background(), unstructuredPlacementDecision, metav1.CreateOptions{})
 			if err != nil {
 				return fmt.Errorf("failed to create placement decision: %v", err)
 			}
+
+			c.logger.Info("created placement decision", "name", pd.GetName())
 		} else {
 			return fmt.Errorf("failed to update placement decision: %v", err)
 		}
 	}
 
+	c.logger.Info("updated placement decision", "name", pd.GetName())
 	return nil
 }
 
@@ -113,7 +109,7 @@ func (c *Controller) listPlacementDecisions() ([]runtime.Object, error) {
 	}
 	lister := *pdLister
 
-	list, err := lister.List(labels.Nothing()) // dont need labels
+	list, err := lister.List(labels.Everything()) // dont need labels
 	if err != nil {
 		return nil, err
 	}
@@ -151,9 +147,12 @@ func placementDecisionSpecToUnstructuredObject(placementDecision *v1alpha1.Place
 }
 
 func addFinalizerToPlacementDecision(pd *v1alpha1.PlacementDecision) {
-	pd.ObjectMeta.SetFinalizers(append(pd.ObjectMeta.GetFinalizers(), KSFinalizer))
-}
+	// check if finalizer exists
+	for _, finalizer := range pd.ObjectMeta.GetFinalizers() {
+		if finalizer == KSFinalizer {
+			return
+		}
+	}
 
-func updatePlacementDecisionTimestampAnnotation(pd *v1alpha1.PlacementDecision) {
-	pd.ObjectMeta.Annotations[updateTimestampAnnotationKey] = metav1.Now().String()
+	pd.ObjectMeta.SetFinalizers(append(pd.ObjectMeta.GetFinalizers(), KSFinalizer))
 }

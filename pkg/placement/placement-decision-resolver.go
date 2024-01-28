@@ -51,7 +51,7 @@ type PlacementDecisionResolver interface {
 	DeleteDecisionData(placementKey types.NamespacedName)
 }
 
-func NewPlacementDecisionResolver(gvkGvrMapper GvkGvrMapper) PlacementDecisionResolver {
+func NewPlacementDecisionResolver(gvkGvrMapper util.GvkGvrMapper) PlacementDecisionResolver {
 	return &placementDecisionResolver{
 		gvkGvrMapper: gvkGvrMapper,
 		decisions:    make(map[types.NamespacedName]*decisionData),
@@ -60,7 +60,7 @@ func NewPlacementDecisionResolver(gvkGvrMapper GvkGvrMapper) PlacementDecisionRe
 
 type placementDecisionResolver struct {
 	sync.RWMutex
-	gvkGvrMapper GvkGvrMapper
+	gvkGvrMapper util.GvkGvrMapper
 	decisions    map[types.NamespacedName]*decisionData
 }
 

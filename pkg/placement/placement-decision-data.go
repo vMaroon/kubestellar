@@ -67,7 +67,7 @@ func (dd *decisionData) updateObject(obj runtime.Object) (bool, error) {
 	}
 
 	// add object to map
-	dd.mappedObjects[key.GvkNamespacedNameKey()] = nil
+	dd.mappedObjects[key.GvkNamespacedNameKey()] = &key
 	// if an object is reconciled all the way into here, it means something internal changed, so we need to trigger
 	// a placement-decision update event in order for transport watchers to re-evaluate it
 	return true, nil
@@ -84,7 +84,7 @@ func (dd *decisionData) updateDestinations(destinations []string) {
 
 // toPlacementDecisionSpec converts the decision data to a placement decision
 // spec. This function is thread-safe.
-func (dd *decisionData) toPlacementDecisionSpec(gvkGvrMapper GvkGvrMapper) (*v1alpha1.PlacementDecisionSpec, error) {
+func (dd *decisionData) toPlacementDecisionSpec(gvkGvrMapper util.GvkGvrMapper) (*v1alpha1.PlacementDecisionSpec, error) {
 	dd.RLock()
 	defer dd.RUnlock()
 
@@ -202,7 +202,7 @@ func (dd *decisionData) handleNamespacedObject(gvr schema.GroupVersionResource,
 }
 
 func (dd *decisionData) matchesPlacementDecisionSpec(placementDecisionSpec *v1alpha1.PlacementDecisionSpec,
-	gvkGvrMapper GvkGvrMapper) bool {
+	gvkGvrMapper util.GvkGvrMapper) bool {
 	dd.RLock()
 	defer dd.RUnlock()
 
@@ -247,7 +247,7 @@ func destinationsMatch(destinations []string, placementDecisionDestinations []v1
 // workloadMatchesPlacementDecisionSpec returns true if the workload in the
 // decision data matches the workload in the placement decision spec.
 func workloadMatchesPlacementDecisionSpec(placementDecisionSpecWorkload *v1alpha1.DownsyncObjectReferences,
-	mappedObjects map[string]*util.Key, gvkGvrMapper GvkGvrMapper) bool {
+	mappedObjects map[string]*util.Key, gvkGvrMapper util.GvkGvrMapper) bool {
 	// check lengths
 	clusterScopedObjectsCount := 0
 	for _, clusterScopeDownsyncObjects := range placementDecisionSpecWorkload.ClusterScope {
@@ -278,7 +278,7 @@ func workloadMatchesPlacementDecisionSpec(placementDecisionSpecWorkload *v1alpha
 // clusterScopeMatchesPlacementDecisionSpec returns true if the cluster-scope
 // section in the placement decision spec all exist in the decision data.
 func placementDecisionClusterScopeIsMapped(placementDecisionSpecClusterScope []v1alpha1.ClusterScopeDownsyncObjects,
-	mappedObjects map[string]*util.Key, gvkGvrMapper GvkGvrMapper) bool {
+	mappedObjects map[string]*util.Key, gvkGvrMapper util.GvkGvrMapper) bool {
 	for _, clusterScopeDownsyncObjects := range placementDecisionSpecClusterScope {
 		for _, objName := range clusterScopeDownsyncObjects.ObjectNames {
 			gvr := schema.GroupVersionResource(clusterScopeDownsyncObjects.GroupVersionResource)
@@ -305,7 +305,7 @@ func placementDecisionClusterScopeIsMapped(placementDecisionSpecClusterScope []v
 // namespaceScopeMatchesPlacementDecisionSpec returns true if the namespace-scope
 // section in the placement decision spec all exist in the decision data.
 func namespaceScopeMatchesPlacementDecisionSpec(placementDecisionSpecNamespaceScope []v1alpha1.NamespaceScopeDownsyncObjects,
-	mappedObjects map[string]*util.Key, gvkGvrMapper GvkGvrMapper) bool {
+	mappedObjects map[string]*util.Key, gvkGvrMapper util.GvkGvrMapper) bool {
 	for _, namespaceScopeDownsyncObjects := range placementDecisionSpecNamespaceScope {
 		gvr := schema.GroupVersionResource(namespaceScopeDownsyncObjects.GroupVersionResource)
 		gvk, found := gvkGvrMapper.GetGvk(gvr)

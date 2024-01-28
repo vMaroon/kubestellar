@@ -152,13 +152,19 @@ func (c *Controller) updateDecisions(obj runtime.Object) error {
 			continue
 		}
 
+		c.logger.Info("enqueuing missing placement decision",
+			"name", namespacedName.Name, "namespace", namespacedName.Namespace)
 		// enqueue the placement decision for creation
-		c.enqueueObject(&v1alpha1.PlacementDecision{
+		c.enqueueCreateObject(&v1alpha1.PlacementDecision{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       util.PlacementDecisionKind,
+				APIVersion: v1alpha1.SchemeGroupVersion.String(),
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespacedName.Namespace,
 				Name:      namespacedName.Name,
 			},
-		}, false)
+		})
 	}
 
 	return nil
