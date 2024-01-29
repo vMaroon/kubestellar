@@ -19,6 +19,7 @@ package placement
 import (
 	"context"
 	"fmt"
+	"k8s.io/client-go/dynamic"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -70,6 +71,11 @@ func (c *Controller) updateOrCreatePlacementDecision(pd *v1alpha1.PlacementDecis
 	unstructuredPlacementDecision, err := placementDecisionSpecToUnstructuredObject(pd, placementDecisionSpec)
 	if err != nil {
 		return fmt.Errorf("failed to update or create placement decision: %v", err)
+	}
+
+	// set owner reference
+	if err = setOwnerReference(c.dynamicClient, unstructuredPlacementDecision); err != nil {
+		return fmt.Errorf("failed to set owner-reference for placement-decision %v: %v", pd.GetName(), err)
 	}
 
 	_, err = c.dynamicClient.Resource(schema.GroupVersionResource{
@@ -141,4 +147,26 @@ func placementDecisionSpecToUnstructuredObject(placementDecision *v1alpha1.Place
 	return &unstructured.Unstructured{
 		Object: innerObj,
 	}, nil
+}
+
+func setOwnerReference(dynamicClient *dynamic.DynamicClient, placementDecision *unstructured.Unstructured) error {
+	// get placement
+	placement, err := dynamicClient.Resource(schema.GroupVersionResource{
+		Group:    v1alpha1.SchemeGroupVersion.Group,
+		Version:  v1alpha1.SchemeGroupVersion.Version,
+		Resource: util.PlacementResource,
+	}).Get(context.Background(), placementDecision.GetName(), metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get placement %v: %v", placementDecision.GetName(), err)
+	}
+
+	// set the placement as the owner-reference of the placement-decision
+	placementDecision.SetOwnerReferences(append(placementDecision.GetOwnerReferences(), metav1.OwnerReference{
+		APIVersion: placement.GetAPIVersion(),
+		Kind:       placement.GetKind(),
+		Name:       placement.GetName(),
+		UID:        placement.GetUID(),
+	}))
+
+	return nil
 }
