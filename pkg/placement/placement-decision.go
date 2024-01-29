@@ -160,6 +160,13 @@ func setOwnerReference(dynamicClient *dynamic.DynamicClient, placementDecision *
 		return fmt.Errorf("failed to get placement %v: %v", placementDecision.GetName(), err)
 	}
 
+	// check if ownerRef is already set
+	for _, ownerRef := range placementDecision.GetOwnerReferences() {
+		if ownerRef.UID == placement.GetUID() {
+			return nil
+		}
+	}
+
 	// set the placement as the owner-reference of the placement-decision
 	placementDecision.SetOwnerReferences(append(placementDecision.GetOwnerReferences(), metav1.OwnerReference{
 		APIVersion: placement.GetAPIVersion(),

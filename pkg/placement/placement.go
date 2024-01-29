@@ -52,13 +52,18 @@ const (
 //  3. for updates on label selectors, re-evaluate if existing objects should be removed
 //     from clusters.
 func (c *Controller) handlePlacement(obj runtime.Object) error {
-	placement := obj.DeepCopyObject()
+	placement, err := runtimeObjectToPlacement(obj.DeepCopyObject())
+	if err != nil {
+		return err
+	}
 
 	// handle requeing for changes in placement, excluding deletion
 	if !isBeingDeleted(obj) {
 		if err := c.requeueForPlacementChanges(placement); err != nil {
 			return err
 		}
+	} else {
+		c.placementDecisionResolver.DeleteDecisionData(namespacedNameFromObjectMeta(placement.ObjectMeta))
 	}
 
 	if err := c.handlePlacementFinalizer(placement); err != nil {
@@ -69,21 +74,15 @@ func (c *Controller) handlePlacement(obj runtime.Object) error {
 	if err := c.cleanUpObjectsNoLongerMatching(placement); err != nil {
 		return err
 	}
-	// TODO (maroon): delete placement-decision
 
 	return nil
 }
 
-func (c *Controller) requeueForPlacementChanges(obj runtime.Object) error {
+func (c *Controller) requeueForPlacementChanges(placement *v1alpha1.Placement) error {
 	// allow some time before checking to settle
 	now := time.Now()
 	if now.Sub(c.initializedTs) < waitBeforeTrackingPlacements {
 		return nil
-	}
-
-	placement, err := runtimeObjectToPlacement(obj)
-	if err != nil {
-		return err
 	}
 
 	// update placement decision destinations data since placement was updated
