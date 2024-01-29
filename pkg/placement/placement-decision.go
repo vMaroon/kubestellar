@@ -67,9 +67,6 @@ func (c *Controller) handlePlacementDecision(obj runtime.Object) error {
 // If the object already exists, it is updated. Otherwise, it is created.
 func (c *Controller) updateOrCreatePlacementDecision(pd *v1alpha1.PlacementDecision,
 	placementDecisionSpec *v1alpha1.PlacementDecisionSpec) error {
-	// add finalizer to placement decision if missing
-	addFinalizerToPlacementDecision(pd)
-
 	unstructuredPlacementDecision, err := placementDecisionSpecToUnstructuredObject(pd, placementDecisionSpec)
 	if err != nil {
 		return fmt.Errorf("failed to update or create placement decision: %v", err)
@@ -109,7 +106,7 @@ func (c *Controller) listPlacementDecisions() ([]runtime.Object, error) {
 	}
 	lister := *pdLister
 
-	list, err := lister.List(labels.Everything()) // dont need labels
+	list, err := lister.List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
@@ -144,15 +141,4 @@ func placementDecisionSpecToUnstructuredObject(placementDecision *v1alpha1.Place
 	return &unstructured.Unstructured{
 		Object: innerObj,
 	}, nil
-}
-
-func addFinalizerToPlacementDecision(pd *v1alpha1.PlacementDecision) {
-	// check if finalizer exists
-	for _, finalizer := range pd.ObjectMeta.GetFinalizers() {
-		if finalizer == KSFinalizer {
-			return
-		}
-	}
-
-	pd.ObjectMeta.SetFinalizers(append(pd.ObjectMeta.GetFinalizers(), KSFinalizer))
 }
