@@ -39,7 +39,7 @@ const updateTimestampAnnotationKey = "transport.kubestellar.io/lastUpdateTimesta
 
 // handlePlacementDecision syncs a placement-decision object with what is resolved by the placement-decision-resolver.
 func (c *Controller) handlePlacementDecision(obj runtime.Object) error {
-	placementDecision, err := runtimeObjectToPlacementDecision(obj)
+	placementDecision, err := runtimeObjectToPlacementDecision(obj.DeepCopyObject())
 	if err != nil {
 		return fmt.Errorf("failed to handle placement-decision: %v", err)
 	}
