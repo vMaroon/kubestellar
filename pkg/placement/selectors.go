@@ -104,7 +104,7 @@ func (c *Controller) updateDecisions(obj runtime.Object) error {
 		}
 
 		// obj is selected by placement, update the placement decision resolver
-		resolutionUpdated, err := c.placementDecisionResolver.UpdateDecisionDataResources(namespacedNameFromObjectMeta(placement.ObjectMeta),
+		resolutionUpdated, err := c.placementDecisionResolver.UpdateDecisionDataObjects(namespacedNameFromObjectMeta(placement.ObjectMeta),
 			obj)
 		if err != nil {
 			return fmt.Errorf("failed to update decisions for object %v: %v",

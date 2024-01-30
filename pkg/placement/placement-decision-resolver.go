@@ -37,11 +37,11 @@ type PlacementDecisionResolver interface {
 	// with the maintained placement decision for the given placement key.
 	ComparePlacementDecision(placementKey types.NamespacedName,
 		placementDecisionSpec *v1alpha1.PlacementDecisionSpec) bool
-	// UpdateDecisionDataResources updates the maintained placement decision's
-	// resources data for the given placement key.
+	// UpdateDecisionDataObjects updates the maintained placement decision's
+	// objects data for the given placement key.
 	// If a mapping to the key does not exist, it is created.
 	// The return bool indicates whether the placement decision resolution was changed.
-	UpdateDecisionDataResources(placementKey types.NamespacedName, obj runtime.Object) (bool, error)
+	UpdateDecisionDataObjects(placementKey types.NamespacedName, obj runtime.Object) (bool, error)
 	// UpdateDecisionDataDestinations updates the maintained placement
 	// decision's destinations data for the given placement key.
 	// If a mapping to the key does not exist, it is created.
@@ -101,11 +101,11 @@ func (pdr *placementDecisionResolver) ComparePlacementDecision(placementKey type
 	return decisionData.matchesPlacementDecisionSpec(placementDecisionSpec, pdr.gvkGvrMapper)
 }
 
-// UpdateDecisionDataResources updates the maintained placement decision's
-// resources data for the given placement key.
+// UpdateDecisionDataObjects updates the maintained placement decision's
+// objects data for the given placement key.
 // If a mapping to the key does not exist, it is created.
 // The return bool indicates whether the placement decision resolution was changed.
-func (pdr *placementDecisionResolver) UpdateDecisionDataResources(placementKey types.NamespacedName,
+func (pdr *placementDecisionResolver) UpdateDecisionDataObjects(placementKey types.NamespacedName,
 	obj runtime.Object) (bool, error) {
 	pdr.RLock() // lock for reading map
 	decisionData, exists := pdr.decisions[placementKey]
