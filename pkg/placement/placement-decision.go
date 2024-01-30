@@ -32,11 +32,6 @@ import (
 	"github.com/kubestellar/kubestellar/pkg/util"
 )
 
-// updateTimestampAnnotationKey is the annotation key used to mark the last
-// update timestamp of a placement-decision. This is used to trigger watchers
-// on the placement-decision resource.
-const updateTimestampAnnotationKey = "transport.kubestellar.io/lastUpdateTimestamp"
-
 // handlePlacementDecision syncs a placement-decision object with what is resolved by the placement-decision-resolver.
 func (c *Controller) handlePlacementDecision(obj runtime.Object) error {
 	placementDecision, err := runtimeObjectToPlacementDecision(obj.DeepCopyObject())
