@@ -220,7 +220,7 @@ func (c *Controller) run(workers int) error {
 				c.listers[key] = &lister
 
 				c.gvkGvrMapper.Add(schema.GroupVersionKind{Group: gv.Group, Version: gv.Version, Kind: resource.Kind},
-					schema.GroupVersionResource{Group: resource.Group, Version: resource.Version, Resource: resource.Name})
+					schema.GroupVersionResource{Group: gv.Group, Version: gv.Version, Resource: resource.Name})
 
 				// run the informer
 				// we need to be able to stop informers for APIs (CRDs) that are removed
