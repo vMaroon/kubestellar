@@ -19,8 +19,6 @@ package placement
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/kubestellar/kubestellar/api/edge/v1alpha1"
 )
 
 func namespacedNameFromObjectMeta(meta metav1.ObjectMeta) types.NamespacedName {
@@ -28,13 +26,4 @@ func namespacedNameFromObjectMeta(meta metav1.ObjectMeta) types.NamespacedName {
 		Namespace: meta.Namespace,
 		Name:      meta.Name,
 	}
-}
-
-func destinationsStringSliceToDestinations(destinations []string) []v1alpha1.Destination {
-	dests := make([]v1alpha1.Destination, len(destinations))
-	for i, d := range destinations {
-		dests[i] = v1alpha1.Destination{ClusterId: d}
-	}
-
-	return dests
 }

@@ -331,3 +331,12 @@ func namespaceScopeMatchesPlacementDecisionSpec(placementDecisionSpecNamespaceSc
 
 	return true
 }
+
+func destinationsStringSliceToDestinations(destinations []string) []v1alpha1.Destination {
+	dests := make([]v1alpha1.Destination, len(destinations))
+	for i, d := range destinations {
+		dests[i] = v1alpha1.Destination{ClusterId: d}
+	}
+
+	return dests
+}
