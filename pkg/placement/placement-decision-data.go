@@ -114,7 +114,6 @@ func (dd *decisionData) toPlacementDecisionSpec(gvkGvrMapper util.GvkGvrMapper) 
 			continue
 		}
 
-		// object is namespaced, check if obj GVR is already mapped
 		dd.handleNamespacedObject(*gvr, key, &workload, namespaceScopeDownsyncObjectsMap, nsObjectsLocationInSlice)
 	}
 
@@ -177,6 +176,7 @@ func (dd *decisionData) handleNamespacedObject(gvr schema.GroupVersionResource,
 
 		// update index mapping
 		nsObjectsLocationInSlice[gvrAndNSKey] = len(nsdObjects.ObjectsByNamespace) - 1
+		return
 	}
 
 	// GVR mapping isn't found, create new entry for this obj (and NS map)
@@ -233,6 +233,7 @@ func destinationsMatch(destinations []string, placementDecisionDestinations []v1
 		matches[destination.ClusterId] = nil
 	}
 
+	// check matches
 	for _, destination := range destinations {
 		if _, found := matches[destination]; !found {
 			return false
