@@ -19,7 +19,6 @@ package placement
 import (
 	"context"
 	"fmt"
-	"k8s.io/client-go/dynamic"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 
 	"github.com/kubestellar/kubestellar/api/edge/v1alpha1"
 	"github.com/kubestellar/kubestellar/pkg/util"

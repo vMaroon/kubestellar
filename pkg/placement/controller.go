@@ -75,7 +75,7 @@ var excludedResourceNames = map[string]bool{
 type Controller struct {
 	ctx              context.Context
 	logger           logr.Logger
-	ocmClient        client.Client // TODO (maroon): this should be deleted when transport is ready
+	ocmClient        client.Client
 	dynamicClient    *dynamic.DynamicClient
 	kubernetesClient *kubernetes.Clientset
 	extClient        *apiextensionsclientset.Clientset
