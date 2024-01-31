@@ -166,7 +166,7 @@ func (c *Controller) startInformersForNewAPIResources(toStartList []APIResource)
 		})
 		key := util.KeyForGroupVersionKind(toStart.groupVersion.Group,
 			toStart.groupVersion.Version, toStart.resource.Kind)
-		c.informers[key] = &informer
+		c.informers[key] = informer
 
 		// add the mapping between GVK and GVR
 		c.gvkGvrMapper.Add(toStart.groupVersion.WithKind(toStart.resource.Kind), gvr)

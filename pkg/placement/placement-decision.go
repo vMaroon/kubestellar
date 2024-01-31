@@ -105,9 +105,8 @@ func (c *Controller) listPlacementDecisions() ([]runtime.Object, error) {
 	if pdLister == nil {
 		return nil, fmt.Errorf("could not get lister for placememt-decision")
 	}
-	lister := *pdLister
 
-	list, err := lister.List(labels.Everything())
+	list, err := pdLister.List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +143,7 @@ func placementDecisionSpecToUnstructuredObject(placementDecision *v1alpha1.Place
 	}, nil
 }
 
-func setOwnerReference(dynamicClient *dynamic.DynamicClient, placementDecision *unstructured.Unstructured) error {
+func setOwnerReference(dynamicClient dynamic.Interface, placementDecision *unstructured.Unstructured) error {
 	// get placement
 	placement, err := dynamicClient.Resource(schema.GroupVersionResource{
 		Group:    v1alpha1.SchemeGroupVersion.Group,

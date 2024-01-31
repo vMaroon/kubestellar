@@ -118,18 +118,18 @@ func NewController(mgr ctrlm.Manager, wdsRestConfig *rest.Config, imbsRestConfig
 	gvkGvrMapper := util.NewGvkGvrMapper()
 
 	controller := &Controller{
-		wdsName:          wdsName,
-		logger:           mgr.GetLogger(),
-		ocmClient:        ocmClient,
-		dynamicClient:    dynamicClient,
-		kubernetesClient: kubernetesClient,
-		extClient:        extClient,
-		listers:          make(map[string]cache.GenericLister),
-		informers:        make(map[string]cache.SharedIndexInformer),
-		stoppers:         make(map[string]chan struct{}),
+		wdsName:                   wdsName,
+		logger:                    mgr.GetLogger(),
+		ocmClient:                 ocmClient,
+		dynamicClient:             dynamicClient,
+		kubernetesClient:          kubernetesClient,
+		extClient:                 extClient,
+		listers:                   make(map[string]cache.GenericLister),
+		informers:                 make(map[string]cache.SharedIndexInformer),
+		stoppers:                  make(map[string]chan struct{}),
 		placementDecisionResolver: NewPlacementDecisionResolver(gvkGvrMapper),
 		gvkGvrMapper:              gvkGvrMapper,
-		workqueue:        workqueue.NewRateLimitingQueue(ratelimiter),
+		workqueue:                 workqueue.NewRateLimitingQueue(ratelimiter),
 	}
 
 	return controller, nil
@@ -217,7 +217,7 @@ func (c *Controller) run(workers int) error {
 
 				// create and index the lister
 				lister := cache.NewGenericLister(informer.GetIndexer(), schema.GroupResource{Group: resource.Group, Resource: resource.Name})
-				c.listers[key] = &lister
+				c.listers[key] = lister
 
 				c.gvkGvrMapper.Add(schema.GroupVersionKind{Group: gv.Group, Version: gv.Version, Kind: resource.Kind},
 					schema.GroupVersionResource{Group: gv.Group, Version: gv.Version, Resource: resource.Name})
@@ -490,7 +490,7 @@ func (c *Controller) getObjectFromKey(key util.Key) (runtime.Object, error) {
 		return nil, nil
 	}
 
-	return getObject(lister, key.NamespacedName.Namespace, key.NamespacedName.Name)
+	return getObject(pLister, key.NamespacedName.Namespace, key.NamespacedName.Name)
 }
 
 func getObject(lister cache.GenericLister, namespace, name string) (runtime.Object, error) {
