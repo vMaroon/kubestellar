@@ -43,7 +43,6 @@ import (
 
 const (
 	waitBeforeTrackingPlacements = 5 * time.Second
-	PlacementKind                = "Placement"
 	KSFinalizer                  = "placement.kubestellar.io/kscontroller"
 )
 
@@ -53,19 +52,25 @@ const (
 //  3. for updates on label selectors, re-evaluate if existing objects should be removed
 //     from clusters.
 func (c *Controller) handlePlacement(obj runtime.Object) error {
-	placement := obj.DeepCopyObject()
+	placement, err := runtimeObjectToPlacement(obj.DeepCopyObject())
+	if err != nil {
+		return err
+	}
 
 	// handle requeing for changes in placement, excluding deletion
 	if !isBeingDeleted(obj) {
-		if err := c.requeueForPlacementChanges(); err != nil {
+		if err := c.requeueForPlacementChanges(placement); err != nil {
 			return err
 		}
+	} else {
+		c.placementDecisionResolver.DeleteDecisionData(namespacedNameFromObjectMeta(placement.ObjectMeta))
 	}
 
 	if err := c.handlePlacementFinalizer(placement); err != nil {
 		return err
 	}
 
+	// TODO (maroon): this should be deleted when transport is ready
 	if err := c.cleanUpObjectsNoLongerMatching(placement); err != nil {
 		return err
 	}
@@ -73,12 +78,23 @@ func (c *Controller) handlePlacement(obj runtime.Object) error {
 	return nil
 }
 
-func (c *Controller) requeueForPlacementChanges() error {
+func (c *Controller) requeueForPlacementChanges(placement *v1alpha1.Placement) error {
 	// allow some time before checking to settle
 	now := time.Now()
 	if now.Sub(c.initializedTs) < waitBeforeTrackingPlacements {
 		return nil
 	}
+
+	// update placement decision destinations data since placement was updated
+	list, err := ocm.ListClustersBySelectors(c.ocmClient, placement.Spec.ClusterSelectors)
+	if err != nil {
+		return err
+	}
+
+	c.placementDecisionResolver.UpdateDecisionDataDestinations(namespacedNameFromObjectMeta(placement.ObjectMeta),
+		list)
+
+	// requeue all objects to account for changes in placement
 	if err := c.requeueAll(); err != nil {
 		return err
 	}
@@ -357,8 +373,8 @@ func (c *Controller) testObject(obj mrObject, tests []v1alpha1.ObjectTest) bool 
 	objName := obj.GetName()
 	objLabels := obj.GetLabels()
 	gvk := obj.GetObjectKind().GroupVersionKind()
-	gvkKey := util.KeyForGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)
-	objGVR, haveGVR := c.gvksMap[gvkKey]
+
+	objGVR, haveGVR := c.gvkGvrMapper.GetGvr(gvk)
 	if !haveGVR {
 		c.logger.Info("No GVR, assuming object does not match", "gvk", gvk, "objNS", objNSName, "objName", objName)
 		return false

@@ -75,17 +75,20 @@ var excludedResourceNames = map[string]bool{
 type Controller struct {
 	ctx              context.Context
 	logger           logr.Logger
-	ocmClient        client.Client
+	ocmClient        client.Client // TODO (maroon): this should be deleted when transport is ready
 	dynamicClient    *dynamic.DynamicClient
 	kubernetesClient *kubernetes.Clientset
 	extClient        *apiextensionsclientset.Clientset
 	listers          map[string]*cache.GenericLister
-	gvksMap          map[string]*schema.GroupVersionResource
+	gvkGvrMapper     util.GvkGvrMapper
 	informers        map[string]*cache.SharedIndexInformer
 	stoppers         map[string]chan struct{}
-	workqueue        workqueue.RateLimitingInterface
-	initializedTs    time.Time
-	wdsName          string
+
+	placementDecisionResolver PlacementDecisionResolver
+
+	workqueue     workqueue.RateLimitingInterface
+	initializedTs time.Time
+	wdsName       string
 }
 
 // Create a new placement controller
@@ -112,18 +115,21 @@ func NewController(mgr ctrlm.Manager, wdsRestConfig *rest.Config, imbsRestConfig
 
 	ocmClient := *ocm.GetOCMClient(imbsRestConfig)
 
+	gvkGvrMapper := util.NewGvkGvrMapper()
+
 	controller := &Controller{
-		wdsName:          wdsName,
-		logger:           mgr.GetLogger(),
-		ocmClient:        ocmClient,
-		dynamicClient:    dynamicClient,
-		kubernetesClient: kubernetesClient,
-		extClient:        extClient,
-		listers:          make(map[string]*cache.GenericLister),
-		informers:        make(map[string]*cache.SharedIndexInformer),
-		stoppers:         make(map[string]chan struct{}),
-		gvksMap:          make(map[string]*schema.GroupVersionResource),
-		workqueue:        workqueue.NewRateLimitingQueue(ratelimiter),
+		wdsName:                   wdsName,
+		logger:                    mgr.GetLogger(),
+		ocmClient:                 ocmClient,
+		dynamicClient:             dynamicClient,
+		kubernetesClient:          kubernetesClient,
+		extClient:                 extClient,
+		listers:                   make(map[string]*cache.GenericLister),
+		informers:                 make(map[string]*cache.SharedIndexInformer),
+		stoppers:                  make(map[string]chan struct{}),
+		placementDecisionResolver: NewPlacementDecisionResolver(gvkGvrMapper),
+		gvkGvrMapper:              gvkGvrMapper,
+		workqueue:                 workqueue.NewRateLimitingQueue(ratelimiter),
 	}
 
 	return controller, nil
@@ -212,7 +218,9 @@ func (c *Controller) run(workers int) error {
 				// create and index the lister
 				lister := cache.NewGenericLister(informer.GetIndexer(), schema.GroupResource{Group: resource.Group, Resource: resource.Name})
 				c.listers[key] = &lister
-				c.gvksMap[key] = &schema.GroupVersionResource{Group: resource.Group, Version: resource.Version, Resource: resource.Name}
+
+				c.gvkGvrMapper.Add(schema.GroupVersionKind{Group: gv.Group, Version: gv.Version, Kind: resource.Kind},
+					schema.GroupVersionResource{Group: gv.Group, Version: gv.Version, Resource: resource.Name})
 
 				// run the informer
 				// we need to be able to stop informers for APIs (CRDs) that are removed
@@ -293,6 +301,7 @@ func (c *Controller) handleObject(obj any) {
 	rObj := obj.(runtime.Object)
 	ok := rObj.GetObjectKind()
 	gvk := ok.GroupVersionKind()
+
 	c.logger.V(2).Info("Got object event", gvk.GroupVersion().String(), gvk.Kind, mObj.GetNamespace(), mObj.GetName())
 	c.enqueueObject(obj, false)
 }
@@ -322,6 +331,19 @@ func (c *Controller) enqueueObject(obj interface{}, skipCheckIsDeleted bool) {
 			return
 		}
 	}
+	c.workqueue.Add(key)
+}
+
+// enqueueCreateObject converts a non-existing object into a key struct marked
+// for creation. This is used to have workers create objects that do not exist.
+func (c *Controller) enqueueCreateObject(obj runtime.Object) {
+	key, err := util.KeyForGroupVersionKindNamespaceName(obj)
+	if err != nil {
+		utilruntime.HandleError(err)
+		return
+	}
+
+	key.IsBeingCreated = true
 	c.workqueue.Add(key)
 }
 
@@ -388,14 +410,19 @@ func (c *Controller) reconcile(ctx context.Context, key util.Key) error {
 	var obj runtime.Object
 	var err error
 	if key.DeletedObject == nil {
-		obj, err = c.getObjectFromKey(key)
-		if err != nil {
-			// The resource no longer exist, which means it has been deleted.
-			if errors.IsNotFound(err) {
-				utilruntime.HandleError(fmt.Errorf("object %#v for lister '%s' in work queue no longer exists", key.NamespacedName, key.GvkKey))
-				return nil
+		if key.IsBeingCreated {
+			obj = util.EmptyUnstructuredObjectFromKey(key)
+		} else {
+			obj, err = c.getObjectFromKey(key)
+			if err != nil {
+				// The resource no longer exist, which means it has been deleted.
+				if errors.IsNotFound(err) {
+					utilruntime.HandleError(fmt.Errorf("object %#v for lister '%s' in work queue no longer exists",
+						key.NamespacedName, key.GvkKey()))
+					return nil
+				}
+				return err
 			}
-			return err
 		}
 	} else {
 		obj = *key.DeletedObject
@@ -413,6 +440,11 @@ func (c *Controller) reconcile(ctx context.Context, key util.Key) error {
 		if err := c.handleCRD(obj); err != nil {
 			return err
 		}
+	} else if util.IsPlacementDecision(obj) {
+		if err := c.handlePlacementDecision(obj); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	// avoid further processing for keys of objects being deleted that do not have a deleted object
@@ -420,6 +452,12 @@ func (c *Controller) reconcile(ctx context.Context, key util.Key) error {
 		return nil
 	}
 
+	if err := c.updateDecisions(obj); err != nil {
+		utilruntime.HandleError(fmt.Errorf("error reconciling object: %s", err))
+		return nil
+	}
+
+	//TODO (maroon): everything below this line should be deleted when transport is ready
 	clusters, managedByPlacements, singletonStatus, err := c.matchSelectors(obj)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("error matching selectors: %s", err))
@@ -446,9 +484,9 @@ func (c *Controller) reconcile(ctx context.Context, key util.Key) error {
 }
 
 func (c *Controller) getObjectFromKey(key util.Key) (runtime.Object, error) {
-	pLister := c.listers[key.GvkKey]
+	pLister := c.listers[key.GvkKey()]
 	if pLister == nil {
-		utilruntime.HandleError(fmt.Errorf("could not get lister for key: %s", key.GvkKey))
+		utilruntime.HandleError(fmt.Errorf("could not get lister for key: %s", key.GvkKey()))
 		return nil, nil
 	}
 	lister := *pLister
