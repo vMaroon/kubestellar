@@ -76,12 +76,12 @@ type Controller struct {
 	ctx              context.Context
 	logger           logr.Logger
 	ocmClient        client.Client
-	dynamicClient    *dynamic.DynamicClient
-	kubernetesClient *kubernetes.Clientset
-	extClient        *apiextensionsclientset.Clientset
-	listers          map[string]*cache.GenericLister
+	dynamicClient    dynamic.Interface
+	kubernetesClient kubernetes.Interface
+	extClient        apiextensionsclientset.Interface
+	listers          map[string]cache.GenericLister
 	gvkGvrMapper     util.GvkGvrMapper
-	informers        map[string]*cache.SharedIndexInformer
+	informers        map[string]cache.SharedIndexInformer
 	stoppers         map[string]chan struct{}
 
 	placementDecisionResolver PlacementDecisionResolver
@@ -118,18 +118,18 @@ func NewController(mgr ctrlm.Manager, wdsRestConfig *rest.Config, imbsRestConfig
 	gvkGvrMapper := util.NewGvkGvrMapper()
 
 	controller := &Controller{
-		wdsName:                   wdsName,
-		logger:                    mgr.GetLogger(),
-		ocmClient:                 ocmClient,
-		dynamicClient:             dynamicClient,
-		kubernetesClient:          kubernetesClient,
-		extClient:                 extClient,
-		listers:                   make(map[string]*cache.GenericLister),
-		informers:                 make(map[string]*cache.SharedIndexInformer),
-		stoppers:                  make(map[string]chan struct{}),
+		wdsName:          wdsName,
+		logger:           mgr.GetLogger(),
+		ocmClient:        ocmClient,
+		dynamicClient:    dynamicClient,
+		kubernetesClient: kubernetesClient,
+		extClient:        extClient,
+		listers:          make(map[string]cache.GenericLister),
+		informers:        make(map[string]cache.SharedIndexInformer),
+		stoppers:         make(map[string]chan struct{}),
 		placementDecisionResolver: NewPlacementDecisionResolver(gvkGvrMapper),
 		gvkGvrMapper:              gvkGvrMapper,
-		workqueue:                 workqueue.NewRateLimitingQueue(ratelimiter),
+		workqueue:        workqueue.NewRateLimitingQueue(ratelimiter),
 	}
 
 	return controller, nil
@@ -196,7 +196,7 @@ func (c *Controller) run(workers int) error {
 			if informable {
 				key := util.KeyForGroupVersionKind(gv.Group, gv.Version, resource.Kind)
 				informer := informerFactory.ForResource(gv.WithResource(resource.Name)).Informer()
-				c.informers[key] = &informer
+				c.informers[key] = informer
 
 				// add the event handler functions
 				informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -239,7 +239,7 @@ func (c *Controller) run(workers int) error {
 
 	// wait for all informers caches to be synced
 	for _, informer := range c.informers {
-		if ok := cache.WaitForCacheSync(ctx.Done(), (*informer).HasSynced); !ok {
+		if ok := cache.WaitForCacheSync(ctx.Done(), informer.HasSynced); !ok {
 			return fmt.Errorf("failed to wait for caches to sync")
 		}
 	}
@@ -489,7 +489,6 @@ func (c *Controller) getObjectFromKey(key util.Key) (runtime.Object, error) {
 		utilruntime.HandleError(fmt.Errorf("could not get lister for key: %s", key.GvkKey()))
 		return nil, nil
 	}
-	lister := *pLister
 
 	return getObject(lister, key.NamespacedName.Namespace, key.NamespacedName.Name)
 }
@@ -526,11 +525,11 @@ func isBeingDeleted(obj runtime.Object) bool {
 	return mObj.GetDeletionTimestamp() != nil
 }
 
-func (c *Controller) GetListers() map[string]*cache.GenericLister {
+func (c *Controller) GetListers() map[string]cache.GenericLister {
 	return c.listers
 }
 
-func (c *Controller) GetInformers() map[string]*cache.SharedIndexInformer {
+func (c *Controller) GetInformers() map[string]cache.SharedIndexInformer {
 	return c.informers
 }
 
