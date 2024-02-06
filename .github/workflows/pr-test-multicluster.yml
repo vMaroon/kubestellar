@@ -44,3 +44,11 @@ jobs:
         run: |
           cd test/e2e/multi-cluster-deployment 
           KFLEX_DISABLE_CHATTY=true ./run-test.sh 
+
+      - name: Log state
+        run: |
+          echo pods:
+          kubectl get pods -A
+          echo kubestellar controller log:
+          kubectl logs -n wds1-system -l control-plane=controller-manager 
+          
