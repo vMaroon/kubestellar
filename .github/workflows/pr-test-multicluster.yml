@@ -47,6 +47,7 @@ jobs:
 
       - name: Log state
         run: |
+          kflex ctx
           echo pods:
           kubectl get pods -A
           echo kubestellar controller log:
