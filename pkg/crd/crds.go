@@ -23,17 +23,16 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"time"
 
 	"github.com/go-logr/logr"
 
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -56,7 +55,8 @@ const (
 	FieldManager = "kubestellar"
 )
 
-func ApplyCRDs(dynamicClient dynamic.Interface, clientset kubernetes.Interface, clientsetExt apiextensionsclientset.Interface, logger logr.Logger) error {
+func ApplyCRDs(dynamicClient dynamic.Interface, clientset kubernetes.Interface,
+	clientsetExt apiextensionsclientset.Interface, logger logr.Logger) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -74,19 +74,48 @@ func ApplyCRDs(dynamicClient dynamic.Interface, clientset kubernetes.Interface, 
 			return err
 		}
 		logger.Info("applying crd", "name", crd.GetName())
-		_, err = dynamicClient.Resource(*gvr).Apply(context.TODO(), crd.GetName(), crd, metav1.ApplyOptions{FieldManager: FieldManager})
+		_, err = dynamicClient.Resource(*gvr).Apply(context.TODO(), crd.GetName(), crd,
+			metav1.ApplyOptions{FieldManager: FieldManager})
 		if err != nil {
 			return err
+		}
+	}
+
+	// wait for CRDs to be available. It is not sufficient to check for condition Established on all CRDs, since
+	// there can still be a slight delay before they are available in the discovery information.
+	if err := waitForCRDsAvailable(ctx, clientsetExt, crdNames, logger); err != nil {
+		return fmt.Errorf("waiting for CRDs to become available failed: %w", err)
+	}
+
+	return nil
+}
+
+func waitForCRDsAvailable(ctx context.Context, clientsetExt apiextensionsclientset.Interface,
+	expectedCRDs sets.Set[string], logger logr.Logger) error {
+	condition := func(ctx context.Context) (bool, error) {
+		crdList, err := clientsetExt.ApiextensionsV1().CustomResourceDefinitions().List(ctx, metav1.ListOptions{})
+		if err != nil {
+			logger.Error(err, "error listing CRDs")
+			return false, err
 		}
 
-		// wait until name accepted
-		err = waitForCRDAccepted(ctx, clientsetExt, crd.GetName())
-		if err != nil {
-			return err
+		listedCRDSet := sets.New[string]()
+		for _, crd := range crdList.Items {
+			listedCRDSet.Insert(crd.GetName())
 		}
-		logger.Info("crd name accepted", "name", crd.GetName())
+
+		// Check if all expected CRDs are found
+		if !listedCRDSet.IsSuperset(expectedCRDs) {
+			logger.Info("applied crds are not available yet, polling")
+			return false, nil
+		}
+
+		// All expected CRDs are found
+		return true, nil
 	}
-	return nil
+
+	// Use PollUntilContextCancel with the defined condition and context
+	return wait.PollUntilContextCancel(ctx, 5*time.Second, true, condition)
 }
 
 // Convert GroupVersionKind to GroupVersionResource
@@ -154,21 +183,4 @@ func DecodeYAML(yamlBytes []byte) (*unstructured.Unstructured, error) {
 		return nil, err
 	}
 	return obj, nil
-}
-
-func waitForCRDAccepted(ctx context.Context, clientset apiextensionsclientset.Interface, crdName string) error {
-	return wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {
-		crd, err := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
-		if err != nil {
-			return false, nil
-		}
-
-		for _, condition := range crd.Status.Conditions {
-			if condition.Type == apiextensionsv1.NamesAccepted && condition.Status == apiextensionsv1.ConditionTrue {
-				return true, nil
-			}
-		}
-
-		return false, nil
-	})
 }
