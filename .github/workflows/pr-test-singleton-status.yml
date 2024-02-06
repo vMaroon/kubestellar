@@ -50,5 +50,6 @@ jobs:
           kflex ctx
           echo pods:
           kubectl get pods -A
+          kpod=$(kubectl get pod -n wds1-system --selector=control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
           echo kubestellar controller log:
-          kubectl logs -n wds1-system -l control-plane=controller-manager
+          kubectl logs -n wds1-system $kpod
