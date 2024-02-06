@@ -25,6 +25,7 @@ function wait-for-cmd() (
     while ! (eval "$cmd") ; do
         if (($wait_counter > 36)); then
             echo "Failed to ${cmd}."
+            kubectl -n wds1-system logs -l control-plane=controller-manager
             exit 1
         fi
         ((wait_counter += 1))

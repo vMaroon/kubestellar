@@ -248,9 +248,9 @@ func (c *Controller) run(workers int) error {
 	c.logger.Info("All caches synced")
 
 	// populate the PlacementResolver with entries for existing placements
-	// if err := c.populatePlacementResolverWithExistingPlacements(); err != nil {
-	//	return fmt.Errorf("failed to populate the PlacementResolver for the existing placements: %w", err)
-	//}
+	if err := c.populatePlacementResolverWithExistingPlacements(); err != nil {
+		c.logger.Error(err, "failed to populate the PlacementResolver for the existing placements")
+	}
 
 	c.logger.Info("Starting workers", "count", workers)
 	for i := 0; i < workers; i++ {
