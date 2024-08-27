@@ -100,12 +100,16 @@
   
     
     
+      
+    
     
     
     
     <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="" data-md-color-accent="">
   
     
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
@@ -204,6 +208,34 @@
         </div>
       </div>
     </div>
+    
+      <form class="md-header__option" data-md-component="palette">
+        
+          
+          <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="" data-md-color-accent=""  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+          
+            <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_3" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9h-1.9M20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69m-9.15 3.96h2.3L12 9l-1.15 3.65Z"/></svg>
+            </label>
+          
+        
+          
+          <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="" data-md-color-accent=""  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_2">
+          
+            <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+            </label>
+          
+        
+          
+          <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="light-blue" data-md-color-accent="cyan"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_3">
+          
+            <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_2" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12c0-2.42-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+            </label>
+          
+        
+      </form>
     
     
     
@@ -2448,9 +2480,7 @@ It may make sense to expand the latter into a general feature in the future, acc
 <li>
 <p>The reported state for a given workload object from a given WEC is implicitly augmented with metadata about the WEC and about the end-to-end propagation from WDS to that WEC. This extra information is available just like the regular contents of the object, for use in combining reported state.</p>
 </li>
-<li>
-<p>The reported state from each WEC is augmented with metadata about the WEC and the end-to-end propagation process. This augmented information is available alongside other object contents for use in combining reported state, as specified <a href="#queryable-objects">Queryable Objects</a>.</p>
-</li>
+<li>The specifics of queryable objects and implicit augmentations can be found in <a href="../../../api/control/v1alpha1/types.go">types.go</a> and is specified in <a href="#queryable-objects">Queryable Objects</a>.</li>
 </ol>
 <h3 id="relation-with-sql">Relation with SQL<a class="headerlink" href="#relation-with-sql" title="Permanent link">#</a></h3>
 <h4 id="overview-of-relation-with-sql">Overview of Relation with SQL<a class="headerlink" href="#overview-of-relation-with-sql" title="Permanent link">#</a></h4>
@@ -2535,7 +2565,7 @@ It may make sense to expand the latter into a general feature in the future, acc
 <li>
 <p><code>propagation</code>: Metadata about the end-to-end propagation process:</p>
 </li>
-<li><code>propagation.lastReturnedUpdateTimestamp</code>: Time of last update to any returned state.</li>
+<li><code>propagation.lastReturnedUpdateTimestamp</code>: metav1.Time of last update to any returned state.</li>
 </ol>
 <h2 id="examples-of-using-the-general-technique">Examples of using the general technique<a class="headerlink" href="#examples-of-using-the-general-technique" title="Permanent link">#</a></h2>
 <h3 id="number-of-wecs">Number of WECs<a class="headerlink" href="#number-of-wecs" title="Permanent link">#</a></h3>
